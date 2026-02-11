@@ -1,0 +1,42 @@
+/* Container */
+.wc_payment_method.payment_method_silapay_checkout .silapay-methods {
+  background: #f9fafb !important;
+  border: 1px solid #e5e7eb !important;
+  padding: 16px !important;
+  border-radius: 10px !important;
+  margin-top: 10px;
+}
+
+/* Parágrafos */
+.wc_payment_method.payment_method_silapay_checkout .silapay-methods p {
+  margin-bottom: 12px;
+}
+
+/* Inputs e selects */
+.wc_payment_method.payment_method_silapay_checkout .silapay-methods input[type="text"], input[type="number"],
+.wc_payment_method.payment_method_silapay_checkout .silapay-methods select {
+  width: 100% !important;
+  padding: 10px !important;
+  border-radius: 8px !important;
+  border: 1px solid #d1d5db !important;
+  font-size: 14px !important;
+  background: #fff !important;
+  box-sizing: border-box;
+}
+
+/* Focus */
+.wc_payment_method.payment_method_silapay_checkout .silapay-methods input:focus {
+  border-color: #6366f1 !important;
+  outline: none !important;
+}
+
+/* Labels */
+.wc_payment_method.payment_method_silapay_checkout .silapay-methods label {
+  font-weight: 600;
+  color: #111827;
+}
+
+/* Radios */
+.wc_payment_method.payment_method_silapay_checkout input[type="radio"] {
+  margin-right: 6px;
+}

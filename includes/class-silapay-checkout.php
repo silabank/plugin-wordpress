@@ -3,7 +3,7 @@ defined('ABSPATH') || exit;
 
 class WC_Silapay_Checkout extends WC_Payment_Gateway {
 
-    private $api_url = 'https://api.silapay.pro/v1'; // 'http://127.0.0.1:5000/v1/';
+    private $api_url = 'https://api.silapay.pro/v1/'; // 'http://127.0.0.1:5000/v1/';
     private $access_token;
     private $secret_key;
     public $store_settings = array();

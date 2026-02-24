@@ -1,12 +1,12 @@
 <?php
 /**
- * Plugin Name: Sila Pay Checkout
+ * Plugin Name: Silapay Checkout
  * Plugin URI: https://silapay.pro/
- * Description: Gateway simples para Sila Pay com Cartão, PIX e Boleto
+ * Description: Gateway simples para Silapay com Cartão, PIX e Boleto
  * Version: 1.0.0
- * Author: Sila Pay
+ * Author: Silapay
  * License: GPL v2 or later
- * Text Domain: Sila Pay-checkout
+ * Text Domain: silapay-checkout
  * WC requires at least: 4.0
  */
 
@@ -27,6 +27,7 @@ function silapay_checkout_init() {
     
     // Inclui a classe
     require_once plugin_dir_path(__FILE__) . 'includes/class-silapay-checkout.php';
+    require_once plugin_dir_path(__FILE__) . 'includes/webhook.php';
     
     // Adiciona gateway
     add_filter('woocommerce_payment_gateways', function($gateways) {

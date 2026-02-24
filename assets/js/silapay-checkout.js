@@ -1,5 +1,5 @@
 /**
- * Silapay Checkout - Versão Simplificada
+ * Sila Pay Checkout - Versão Simplificada
  * Esta versão funciona sem complexidades
  */
 

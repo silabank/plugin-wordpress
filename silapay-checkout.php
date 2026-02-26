@@ -1,10 +1,10 @@
 <?php
 /**
- * Plugin Name: Silapay Checkout
+ * Plugin Name: Sila Pay Checkout
  * Plugin URI: https://silapay.pro/
- * Description: Gateway simples para Silapay com Cartão, PIX e Boleto
- * Version: 1.0.0
- * Author: Silapay
+ * Description: Gateway simples para Sila Pay com Cartão, PIX e Boleto
+ * Version: 1.0.21
+ * Author: Sila Pay
  * License: GPL v2 or later
  * Text Domain: silapay-checkout
  * WC requires at least: 4.0
@@ -42,3 +42,4 @@ add_filter('plugin_action_links_' . plugin_basename(__FILE__), function($links) 
     array_unshift($links, $settings_link);
     return $links;
 });
+

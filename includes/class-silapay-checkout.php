@@ -2,11 +2,13 @@
 defined('ABSPATH') || exit;
 
 class WC_Silapay_Checkout extends WC_Payment_Gateway {
-
-    private $api_url = 'https://api.silapay.pro/v1/'; // 'http://127.0.0.1:5000/v1/';
-    private $access_token;
-    private $secret_key;
+    
+    public $id = "silapay_checkout";
+    public $access_token;
+    public $secret_key;
     public $store_settings = array();
+    public $api_url;
+    public $mode;
 
     // PARAMETROS DO PAINEL SILA PAY
     public $payment_methods = array();
@@ -15,15 +17,17 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
     public $tax_assume = 'seller';
     public $store_id = '';
     public $seller_id = '';
+    public $evidence_error = '';
     
     
     public function __construct() {
         $this->id                 = 'silapay_checkout';
-        $this->method_title       = 'Silapay Checkout';
+        $this->method_title       = 'Sila Pay Checkout';
         $this->method_description = 'Aceite pagamentos via Cartão, PIX e Boleto';
         $this->has_fields         = true;
         $this->supports           = array('products');
-        
+        $this->icon = plugin_dir_url(__FILE__) . '../assets/images/logo.png';
+
         // Carrega configurações
         $this->init_form_fields();
         $this->init_settings();
@@ -32,16 +36,31 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
         $this->title        = $this->get_option('title');
         $this->description  = $this->get_option('description');
         $this->enabled      = $this->get_option('enabled');
+        $this->mode = $this->get_option('mode');
         $this->access_token = $this->get_option('access_token');
         $this->secret_key   = $this->get_option('secret_key');
 
+        if ($this->mode === 'yes') {
+            // SANDBOX / LOCAL
+            $this->api_url = 'http://127.0.0.1:5000/v1/';
+            add_action('admin_notices', function() {echo '<div class="notice notice-warning"><p><strong>Sila Pay:</strong> Modo Sandbox ativo.</p></div>';});
+        } else {
+            // PRODUÇÃO
+            $this->api_url = 'https://api.silapay.pro/v1/';
+            add_action('admin_notices', function() {echo '<div class="notice notice-success"><p><strong>Sila Pay:</strong> Modo Produção ativo.</p></div>';});
+        }
+        
+        
         // Ações
         add_action('woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options'));
         add_action('woocommerce_receipt_' . $this->id, array($this, 'receipt_page'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_styles'));
+        
+        
+        $this->register_webhook_automatically();
+    }
 
   
-    }
     
     // adicionando os estilos
     public function enqueue_styles() {
@@ -62,6 +81,13 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
                 'type'    => 'checkbox',
                 'label'   => 'Ativar Sila Pay Checkout',
                 'default' => 'yes'
+            ),
+            'mode' => array(
+                'title'       => 'Modo Sandbox',
+                'type'        => 'checkbox',
+                'label'       => 'Ativar modo Sandbox (ambiente de testes)',
+                'default'     => 'no',
+                'description' => 'Marque para usar API local/teste. Desmarque para produção.',
             ),
             'title' => array(
                 'title'       => 'Título',
@@ -86,7 +112,14 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
                 'title'       => 'Secret Key',
                 'type'        => 'password',
                 'description' => 'Sua Secret Key fornecida pela Sila Pay.',
-            ),
+            ),    
+            'webhookSecret' => [
+                'title' => 'Webhook Secret',
+                'type'  => 'password',
+                'custom_attributes' => [
+                    'readonly' => 'readonly'
+                ],
+            ]        
         );
     }
     
@@ -101,20 +134,26 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
             echo wpautop(wp_kses_post($this->description));
         }        
         ?>
-
         
+        <div class="silapay-methods"> 
+            <?php if(!empty($this->evidence_error)): ?>
+                <p style="color:red;"><?php echo !empty($this->evidence_error) ? $this->evidence_error : "Erro ao estabelecer conexão com a API Sila Pay.";?></p>
+            <?php endif; ?>
 
-        <div class="silapay-methods">            
+            <?php if(empty($this->payment_methods)): ?>
+                <p style="color:red;">Nenhum método de pagamento foi escolhido para esta loja.</p>
+            <?php endif; ?>
+                
             <?php if(in_array("creditCard", $this->payment_methods)): ?>
             <p>
-                <input type="radio" name="silapay_method" value="card" id="silapay-card" checked>
+                <input type="radio" name="silapay_method" value="card" id="silapay-card">
                 <label for="silapay-card"><strong>💳 Cartão de Crédito</strong></label>
             </p>
             
             <div id="silapay-card-fields" style="margin-left: 20px; margin-bottom: 15px;">
                 <p>
                     <label>Número do cartão *<br>
-                    <input type="text" name="card_number" placeholder="4444 4444 4444 4444">
+                    <input type="text" name="card_number" placeholder="4444 4444 4444 4444" maxlength="16">
                     </label>
                 </p>
                 
@@ -146,8 +185,8 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
                 </p>
                 
                 <p>
-                    <label>CPF do titular *<br>
-                    <input type="text" name="card_cpf" placeholder="123.456.789-00" style="width: 100%; padding: 8px;">
+                    <label>CPF do titular * (sem pontos e traços)<br>
+                    <input type="text" name="card_cpf" placeholder="Ex: 123.456.789-00" maxlength="11" style="width: 100%; padding: 8px;">
                     </label>
                 </p>
                 
@@ -163,16 +202,16 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
             </div>
             <?php endif ;?>
 
-            <?php /* if(in_array("pix", $this->payment_methods)): ?>
+            <?php  if(in_array("pix", $this->payment_methods)): ?>
             <p>
-                <input type="radio" name="silapay_method" value="pix" id="silapay-pix">
+                <input type="radio" name="silapay_method" value="pix" id="silapay-pix" checked>
                 <label for="silapay-pix"><strong>📱 PIX</strong></label>
             </p>
             
             <div id="silapay-pix-info" style="margin-left: 20px; display: none;">
                 <p><em>Após confirmar, será gerado um QR Code para pagamento.</em></p>
             </div>
-            <?php endif; */ ?>
+            <?php endif; ?>
             
             <?php /* if(in_array("billet", $this->payment_methods)): ?>
             <p>
@@ -327,7 +366,7 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
         echo '</div>';
     }
 
-    public function process_admin_options() {
+    public function process_admin_options() { 
         $saved = parent::process_admin_options();
         
         // Recarrega as configurações após salvar
@@ -339,12 +378,45 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
         if (!empty($this->access_token) && !empty($this->secret_key)) {
             return false;
         }
+
         
+            
         return $saved;
     }
 
-    public function fetch_store_settings() {      
-     
+    private function register_webhook_automatically() {
+        
+        // Pega o webhookSecret salvo nas configurações
+        $webhookSecret = $this->get_option('webhookSecret');
+        
+
+        $settings = get_option('woocommerce_silapay_checkout_settings', []);
+
+        // Gera secret se não existir ainda no banco
+        if (empty($settings['webhookSecret'])) {
+            $settings['webhookSecret'] = wp_generate_password(32, false);
+            update_option('woocommerce_silapay_checkout_settings', $settings);
+
+            $webhookSecret = $settings['webhookSecret'];
+        }
+
+        $postbackUrl = home_url('/wp-json/silapay/v1/webhook');
+
+        wp_remote_post($this->api_url.'integrations/woocommerce/secret/register', [
+            'headers' => [
+                'Content-Type'  => 'application/json',
+                'api-key' => $this->access_token,
+                'secret-key'  => $this->secret_key,
+            ],
+            'body' => json_encode([
+                'postbackUrl'    => $postbackUrl,
+                'webhookSecret' => $webhookSecret
+            ])
+        ]);
+    }
+
+    public function fetch_store_settings() {    
+
         if (empty($this->access_token) || empty($this->secret_key)) {
             return false;
         }
@@ -352,16 +424,20 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
         $endpoint = 'integrations/woocommerce/store/key/' . $this->access_token;
         
         $response = $this->api_request_get($endpoint);
-        if ($response && !isset($response['error'])) {
+
+        if ($response && (!isset($response["response"]['error']) && !isset($response["error"]))) {
+            
             $this->update_store_settings($response);
+
             return true;
         } 
         
+        $this->evidence_error = $response["response"]["message"] ?? $response["message"] ?? $response["error"] ?? '';
+
         return false;
     }
     
     private function update_store_settings($settings) {
-
         $this->store_settings = $settings;
         
         // Mapeia os campos do JSON para as propriedades da classe
@@ -405,9 +481,49 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
 
     private function process_card_payment($order) {
         echo '<p>Processando pagamento com cartão...</p>';
+
+        // SOMANDO PRODUTOS, TAXAS e FRETES
+        
+        $items = [];
+
+        // ITENS
+        foreach ($order->get_items() as $item) {
+            $items[] = [
+                'id'       => (string) $item->get_product_id(),
+                'name'     => $item->get_name(),
+                'price'    => (float) ($item->get_total() / $item->get_quantity()),
+                'quantity' => (int) $item->get_quantity(),
+            ];
+        }
+  
+
+    
+
+        // FRETES
+        foreach ($order->get_shipping_methods() as $shipping) {
+            $items[] = [
+                'id'       => 'shipping_' . sanitize_title($shipping->get_name()),
+                'name'     => 'Frete - ' . $shipping->get_name(),
+                'price'    => (float) $shipping->get_total(),
+                'quantity' => 1,
+            ];
+        }
         
         // Monta dados para API
         $card_data = $order->get_meta('_silapay_card_data', true);
+        
+        // Adiciona taxa de 17% apenas se o site for club6.com.br
+        $site_url = preg_replace('#^https?://(www\.)?#', '', home_url());
+        if ($site_url === 'club6.com.br') {
+            $subtotal = array_sum(array_column($items, 'price'));
+            $taxa = $subtotal * 0.17;
+            $items[] = [
+            'id'       => 'Taxa Club6',
+            'name'     => 'Taxa Club6',
+            'price'    => (float) $taxa,
+            'quantity' => 1,
+            ];
+        }
         
         $data = array(
             'value' => floatval($order->get_total()),
@@ -419,8 +535,8 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
             'paymentMethod' => 'creditCard',
             'postalService' => false,
             'callback' => array(
-                'successUrl' => $this->get_return_url($order),
-                'autoRedirect' => false
+                'successUrl' => $this->redirect_url ?? $this->get_return_url($order),
+                'autoRedirect' => true
             ),
             'cardOwner' => array(
                 'name' => $order->get_billing_first_name() . ' ' . $order->get_billing_last_name(),
@@ -447,14 +563,7 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
             'expirationYear' => $card_data['card_expiration_year'],
             'cvv' => $card_data['cvc'] ?? '',
             ),
-            'products' => array_values(array_map(function($item) {
-            return array(
-                'name' => $item->get_name(),
-                'price' => floatval($item->get_total() / $item->get_quantity()),
-                'total' => floatval($item->get_total()),
-                'quantity' => intval($item->get_quantity()),
-            );
-            }, $order->get_items())),
+            'products' => $items,
         );
         
         // Faz chamada à API
@@ -472,27 +581,57 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
     }
     
     private function process_pix_payment($order) {
-        echo '<p>Gerando PIX...</p>';
+        echo '<p>Gerando PIX...</p> ';
+
+        // SOMANDO PRODUTOS, TAXAS e FRETES
+        $items = [];
+
+        // ITENS
+        foreach ($order->get_items() as $item) {
+            $items[] = [
+                'id'       => (string) $item->get_product_id(),
+                'name'     => $item->get_name(),
+                'price'    => (float) ($item->get_total() / $item->get_quantity()),
+                'quantity' => (int) $item->get_quantity(),
+            ];
+        }
+
+
+        // FRETES
+    foreach ($order->get_shipping_methods() as $shipping) {
+        $items[] = [
+            'id'       => 'shipping_' . sanitize_title($shipping->get_name()),
+            'name'     => 'Frete - ' . $shipping->get_name(),
+            'price'    => (float) $shipping->get_total(),
+            'quantity' => 1,
+        ];
+    }
+
+    // Adiciona taxa de 17% apenas se o site for club6.com.br
+    $site_url = preg_replace('#^https?://(www\.)?#', '', home_url());
+    if ($site_url === 'club6.com.br') {
+        $subtotal = array_sum(array_column($items, 'price'));
+        $taxa = $subtotal * 0.17;
+        $items[] = [
+        'id'       => 'Taxa Club6',
+        'name'     => 'Taxa Club6',
+        'price'    => (float) $taxa,
+        'quantity' => 1,
+        ];
+    }
         
         $data = array(
-            'woocommerceStoreName' => home_url(),
+            'woocommerceStoreName' => preg_replace('#^https?://#', '', home_url()),
             'sellerId' => $this->access_token,
             'orderId' => (string) $order->get_id(),
             'customerId' => (string) $order->get_customer_id(),
             'cartId' => (string) $order->get_cart_hash(),
             'method' => 'pix',
             'feeChoice' => 'Seller',
-            'items' => array_values(array_map(function($item) {
-                return [
-                    'id' => (string) $item->get_product_id(),
-                    'name' => $item->get_name(),
-                    'price' => (float) $item->get_total(),
-                    'quantity' => (int) $item->get_quantity(),
-                ];
-            }, $order->get_items())),
+            'items' => $items,
             'paymentInfo' => array(
-            'amount' => $order->get_total(),
-            'currency' => 'BRL',
+                'amount' => $order->get_total(),
+                'currency' => 'BRL',
             ),
             'personalInfo' => array(
             'name' => $order->get_billing_first_name() . ' ' . $order->get_billing_last_name(),
@@ -500,7 +639,7 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
             'phone' => $order->get_billing_phone(),
             'document' => $order->get_meta('_billing_cpf', true),
             ),
-            'return_url' => $this->get_return_url($order),
+            'redirectUrl' => $this->get_return_url($order),
         );
         
         $response = $this->api_request('integrations/woocommerce/pay/pix', $data);
@@ -508,7 +647,6 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
         if ($response && isset($response['pixCopiaECola'])) {
             $this->show_pix_qrcode($order, $response);
         } else { 
-            echo json_encode($response);
             echo '<p class="error">Erro ao gerar PIX: ' . ($response['message'] === "Validation failed" ? "Verifique as informações fornecidas para o gateway." : $response['message'] ?? 'Erro desconhecido') . '</p>';
         }
     }
@@ -546,10 +684,15 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
         
         echo '<div class="silapay-pix-container" style="text-align: center; padding: 20px;">';
         echo '<h4>Pague com PIX</h4>';
+
+        $expires_in = 900; // 15 minutos
+        ?>
+        
+        <?php
         
         // QR Code
         if ($pix !== NULL) {
-            echo '<img src="https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=' . esc_url($pix) . '" alt="QR Code PIX" style="max-width: 250px; border: 1px solid #ddd; padding: 10px;">';
+            echo '<img src="https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=' . $pix . '" alt="QR Code PIX" style="max-width: 250px; border: 1px solid #ddd; padding: 10px;">';
         } else {
             echo '<div style="background: #f5f5f5; padding: 20px; display: inline-block;">';
             echo '<p><strong>QR Code não disponível</strong></p>';
@@ -557,32 +700,29 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
         }
         
         // Código PIX (copia e cola)
-        if (!empty($pix['copy_paste'])) {
+        if ($pix !== NULL) {
             echo '<div style="margin: 20px 0;">';
             echo '<p><strong>Código PIX:</strong></p>';
-            echo '<textarea readonly style="width: 100%; height: 60px; padding: 10px; font-family: monospace;">' . esc_textarea($pix['copy_paste']) . '</textarea>';
-            echo '<button onclick="copyPixCode()" style="margin-top: 10px; padding: 8px 16px;">Copiar Código</button>';
+            echo '<textarea readonly style="width: 100%; height: 80px; padding: 10px; font-family: monospace; text-align:center;">' . $pix . '</textarea>';
             echo '</div>';
         }
-        
-        // Instruções
-        echo '<div style="background: #f0f8ff; padding: 15px; border-radius: 5px; margin: 20px 0;">';
-        echo '<h5>Como pagar:</h5>';
-        echo '<ol style="text-align: left; display: inline-block;">';
-        echo '<li>Abra o app do seu banco</li>';
-        echo '<li>Escaneie o QR Code ou cole o código PIX</li>';
-        echo '<li>Confirme o pagamento</li>';
-        echo '</ol>';
-        echo '</div>';
-        
+
         // Timer
-        $expires_in = $pix['expires_in'] ?? 1800; // 30 minutos
+      
         echo '<div id="pix-timer" style="color: #d32f2f; font-weight: bold;"></div>';
         
         echo '</div>';
         
-        // JavaScript para timer e verificação
-        ?>
+        // Instruções
+        echo '<div align="center" style="background: #f0f8ff; padding: 15px; border-radius: 5px; margin: 20px 0;">';
+        echo '<p style="text-align: center;">1. Abra o app do seu banco</p>';
+        echo '<p style="text-align: center;">2. Escaneie o QR Code ou cole o código PIX</p>';
+        echo '<p style="text-align: center;">3. Confirme o pagamento</p>';
+        echo '</div>';
+        
+       
+        
+      ?>
         <script>
         // Timer
         var endTime = new Date().getTime() + (<?php echo $expires_in; ?> * 1000);
@@ -605,14 +745,7 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
             setTimeout(updateTimer, 1000);
         }
         
-        // Copiar código PIX
-        function copyPixCode() {
-            var textarea = document.querySelector('textarea');
-            textarea.select();
-            document.execCommand('copy');
-            alert('Código PIX copiado!');
-        }
-        
+     
         // Verifica status a cada 5 segundos
         function checkPaymentStatus() {
             jQuery.ajax({
@@ -624,8 +757,10 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
                     nonce: '<?php echo wp_create_nonce('silapay_status_' . $order->get_id()); ?>'
                 },
                 success: function(response) {
-                    if (response.success && response.data.status === 'paid') {
-                        window.location.href = '<?php echo $this->get_return_url($order); ?>';
+                    if (response.success) {
+                        if(response.data.status.toLowerCase() === 'paid'){
+                            window.location.replace('<?php echo $this->get_return_url($order); ?>');
+                        }
                     }
                 }
             });
@@ -637,7 +772,8 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
         updateTimer();
         checkPaymentStatus();
         </script>
-        <?php
+      <?php
+        
     }
     
     private function show_boleto($order, $response) {
@@ -721,8 +857,8 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
         $order->add_order_note('Pagamento Silapay aprovado. ID: ' . ($response['id'] ?? ''));
         $order->payment_complete($response['id'] ?? '');
         
-        echo '<p class="success">Pagamento aprovado!</p>';
-        echo '<script>setTimeout(function() { window.location.href = "' . $this->get_return_url($order) . '"; }, 2000);</script>';
+        echo '<p class="success" style="color: #4bb543;">Pagamento aprovado! Redirecionaremos você em 5 segundos.</p>';
+        echo '<script>setTimeout(function() { window.location.href = "' . esc_url($this->get_return_url($order)) . '"; }, 5000);</script>';
     }
 
     private function api_request_get($endpoint) {
@@ -815,33 +951,81 @@ add_action('wp_ajax_silapay_check_status', 'silapay_check_status_handler');
 add_action('wp_ajax_nopriv_silapay_check_status', 'silapay_check_status_handler');
 
 function silapay_check_status_handler() {
+
     if (!isset($_POST['order_id']) || !isset($_POST['nonce'])) {
-        wp_send_json_error('Dados inválidos');
+        wp_send_json_error(['message' => 'Dados inválidos']);
     }
-    
+
     $order_id = intval($_POST['order_id']);
-    $nonce = sanitize_text_field($_POST['nonce']);
-    
+    $nonce    = sanitize_text_field($_POST['nonce']);
+
     if (!wp_verify_nonce($nonce, 'silapay_status_' . $order_id)) {
-        wp_send_json_error('Nonce inválido');
+        wp_send_json_error(['message' => 'Nonce inválido']);
     }
-    
+
     $order = wc_get_order($order_id);
-    
+
     if (!$order) {
-        wp_send_json_error('Pedido não encontrado');
+        wp_send_json_error(['message' => 'Pedido não encontrado']);
     }
-    
-    // Aqui você faria uma consulta à API da Silapay
-    // Por enquanto, retorna o status atual do pedido
-    $status = $order->get_status();
-    
-    if (in_array($status, array('processing', 'completed'))) {
-        wp_send_json_success(array('status' => 'paid'));
-    } elseif ($status === 'failed') {
-        wp_send_json_success(array('status' => 'failed'));
+
+    // Pega gateway
+    $gateways = WC()->payment_gateways->payment_gateways();
+    if (!isset($gateways['silapay_checkout'])) {
+        wp_send_json_error(['message' => 'Gateway não encontrado']);
+    }
+
+    $gateway = $gateways['silapay_checkout'];
+
+    // Monta endpoint
+    $endpoint = 'integrations/woocommerce/order/' . $order_id;    
+  
+    $url = $gateway->api_url . $endpoint;
+
+    $args = array(
+        'method'  => 'GET',
+        'timeout' => 20,
+        'headers' => array(
+            'Content-Type' => 'application/json',
+            'api-key'      => $gateway->access_token,
+            'secret-key'   => $gateway->secret_key,
+        ),
+    );
+
+    $response = wp_remote_get($url, $args);
+
+    if (is_wp_error($response)) {
+        wp_send_json_error([
+            'message' => $response->get_error_message()
+        ]);
+    }
+
+    $body = wp_remote_retrieve_body($response);
+    $data = json_decode($body, true);
+
+    if (!$data) {
+        wp_send_json_error(['message' => 'Resposta inválida da API']);
+    }  
+     
+
+
+    $transaction_status = $data['status'] ?? 'pending';
+
+    if ($transaction_status === 'paid') {
+
+        if ($order->get_status() !== 'processing' && $order->get_status() !== 'completed') {
+            $order->payment_complete();
+            $order->add_order_note('Pagamento confirmado via API Silapay.');
+        }
+
+        wp_send_json_success(['status' => 'paid']);
+
+    } elseif ($transaction_status === 'failed') {
+
+        $order->update_status('failed', 'Pagamento recusado pela Silapay.');
+        wp_send_json_success(['status' => 'failed']);
+
     } else {
-        wp_send_json_success(array('status' => 'pending'));
+        wp_send_json_success(['status' => 'pending']);
     }
 }
-

@@ -23,10 +23,10 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
     public function __construct() {
         $this->id                 = 'silapay_checkout';
         $this->method_title       = 'Sila Pay Checkout';
-        $this->method_description = 'Aceite pagamentos via Cartão, PIX e Boleto';
+        $this->method_description = 'Aceite pagamentos via Cartão, PIX';
         $this->has_fields         = true;
         $this->supports           = array('products');
-        $this->icon = plugin_dir_url(__FILE__) . '../assets/images/logo.png';
+        // $this->icon = plugin_dir_url(__FILE__) . '../assets/images/logo.png';
 
         // Carrega configurações
         $this->init_form_fields();
@@ -55,12 +55,24 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
         add_action('woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options'));
         add_action('woocommerce_receipt_' . $this->id, array($this, 'receipt_page'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_styles'));
-        
+        add_action('woocommerce_review_order_before_payment', [$this, 'silapay_nationality_dropdown']);
         
         $this->register_webhook_automatically();
     }
 
-  
+  public function silapay_nationality_dropdown() {
+    ?>
+    <div class="silapay-nationality" style="margin-bottom:15px;">
+        <label for="silapay_nationality"><strong>Nacionalidade</strong></label>
+
+        <select name="silapay_nationality" id="silapay_nationality" style="width:100%;padding:8px;">
+            <option value="BR">🇧🇷 Português</option>
+            <option value="US">🇺🇸 English</option>
+            <option value="ES">🇪🇸 Español</option>
+        </select>
+    </div>
+    <?php
+}
     
     // adicionando os estilos
     public function enqueue_styles() {
@@ -126,9 +138,7 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
     public function payment_fields() {
 
     ?>
-        <div>
-            <img src="<?php echo plugin_dir_url(__FILE__) . '../assets/images/logo-small.png';?>" alt="Sila Pay Logo" style="border-radius:12px; margin-left:0px;" width="46" height="46">
-        </div>
+        
     <?php
         if ($this->description) {
             echo wpautop(wp_kses_post($this->description));
@@ -152,7 +162,7 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
             
             <div id="silapay-card-fields" style="margin-left: 20px; margin-bottom: 15px;">
                 <p>
-                    <label>Número do cartão *<br>
+                    <label id="card_number_translate"><span>Número do cartão *</span><br>
                     <input type="text" name="card_number" placeholder="4444 4444 4444 4444" maxlength="16">
                     </label>
                 </p>
@@ -160,12 +170,12 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
                 <p>
                     <div style="display: flex; justify-content: space-between;">
                         <div style="width: 48%;">
-                            <label>Mês (MM) *<br>
+                            <label id="card_month_translate"><span >Mês (MM) *</span> <br>
                             <input type="number" max="12" min="01" name="card_expiration_month" placeholder="Ex: 05" style="width: 100%;">
                             </label>
                         </div>
                         <div style="width: 48%;">
-                            <label>Ano (AA) *<br>
+                            <label id="card_year_translate"><span>Ano (AA) *</span><br>
                             <input type="number" min="<?php echo date("y");?>" max="<?php echo date("y") + 20;?>" name="card_expiration_year" placeholder="Ex: <?php echo date("y") + 5;?>" style="width: 100%; padding: 8px;">
                             </label>
                         </div>
@@ -179,19 +189,19 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
                 </p>
                 
                 <p>
-                    <label>Nome no cartão *<br>
+                    <label id="card_holder"><span>Nome no cartão *</span><br>
                     <input type="text" name="card_holder" placeholder="João da Silva" style="width: 100%; padding: 8px;">
                     </label>
                 </p>
                 
-                <p>
+                <p id="document_owner">
                     <label>CPF do titular * (sem pontos e traços)<br>
-                    <input type="text" name="card_cpf" placeholder="Ex: 123.456.789-00" maxlength="11" style="width: 100%; padding: 8px;">
+                    <input  type="text" name="card_cpf" placeholder="Ex: 123.456.789-00" maxlength="11" style="width: 100%; padding: 8px;">
                     </label>
                 </p>
                 
                 <p>
-                    <label>Parcelas<br>
+                    <label id="card_installments"><span>Parcelas</span><br>
                     <select name="installments" style="padding: 8px;">
                         <?php for ($i = 1; $i <= 12; $i++): ?>
                         <option value="<?php echo $i; ?>"><?php echo $i; ?>x</option>
@@ -203,7 +213,7 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
             <?php endif ;?>
 
             <?php  if(in_array("pix", $this->payment_methods)): ?>
-            <p>
+            <p id="silapay-pix-option">
                 <input type="radio" name="silapay_method" value="pix" id="silapay-pix" checked>
                 <label for="silapay-pix"><strong>📱 PIX</strong></label>
             </p>
@@ -232,12 +242,151 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
         </div>
         
         <script>
+            const silapayTranslations = {
+                BR: {
+                    card_title: "💳 Cartão de Crédito",
+                    card_number: "Número do cartão *",
+                    card_placeholder: "4444 4444 4444 4444",
+
+                    month: "Mês (MM) *",
+                    month_placeholder: "Ex: 05",
+
+                    year: "Ano (AA) *",
+                    year_placeholder: "Ex: 31",
+
+                    cvc: "CVC *",
+                    cvc_placeholder: "123",
+
+                    holder: "Nome no cartão *",
+                    holder_placeholder: "João da Silva",
+
+                    installments: "Parcelas",
+
+                    pix_title: "📱 PIX"
+                },
+
+                US: {
+                    card_title: "💳 Credit Card",
+                    card_number: "Card Number *",
+                    card_placeholder: "4444 4444 4444 4444",
+
+                    month: "Month (MM) *",
+                    month_placeholder: "Ex: 05",
+
+                    year: "Year (YY) *",
+                    year_placeholder: "Ex: 31",
+
+                    cvc: "CVC *",
+                    cvc_placeholder: "123",
+
+                    holder: "Cardholder Name *",
+                    holder_placeholder: "John Smith",
+
+                    installments: "Installments",
+
+                    pix_title: "📱 PIX"
+                },
+
+                ES: {
+                    card_title: "💳 Tarjeta de Crédito",
+                    card_number: "Número de tarjeta *",
+                    card_placeholder: "4444 4444 4444 4444",
+
+                    month: "Mes (MM) *",
+                    month_placeholder: "Ej: 05",
+
+                    year: "Año (AA) *",
+                    year_placeholder: "Ej: 31",
+
+                    cvc: "CVC *",
+                    cvc_placeholder: "123",
+
+                    holder: "Nombre en la tarjeta *",
+                    holder_placeholder: "Juan Pérez",
+
+                    installments: "Cuotas",
+
+                    pix_title: "📱 PIX"
+                }
+
+            };
+
+            
+
         jQuery(document).ready(function($) {
             $('input[name="silapay_method"]').change(function() {
                 $('#silapay-card-fields').toggle($(this).val() === 'card');
                 $('#silapay-pix-info').toggle($(this).val() === 'pix');
                 $('#silapay-boleto-info').toggle($(this).val() === 'boleto');
             });
+        });
+
+        jQuery(document).ready(function($){
+
+            function togglePix() {
+                var nationality = $('#silapay_nationality').val();
+
+                if(nationality !== 'BR'){
+                    $('#silapay-pix-option').hide();
+                    $('#document_owner').hide();
+                    
+                    // se PIX estiver selecionado muda para cartão
+                    if($('#silapay-pix').is(':checked')){
+                        $('#silapay-card').prop('checked', true).trigger('change');
+                    }
+
+                } else {
+                    $('#silapay-pix-option').show();
+                }
+            }
+
+            function translateSilapay() {
+                var nationality = jQuery('#silapay_nationality').val();
+
+                if(!silapayTranslations[nationality]){
+                    nationality = "BR";
+                }
+
+                console.log("NACIONALIDADE",  silapayTranslations[nationality]);
+
+
+                jQuery('label[for="silapay-card"] strong').text(
+                    silapayTranslations[nationality].card_title
+                );
+
+                jQuery('#card_number_translate span').text(
+                    silapayTranslations[nationality].card_number
+                );
+
+                jQuery('#card_month_translate span').text(
+                    silapayTranslations[nationality].month
+                );
+
+                jQuery('#card_year_translate span').text(
+                    silapayTranslations[nationality].year
+                );
+
+                jQuery('#card_holder span').text(
+                    silapayTranslations[nationality].holder
+                );
+
+                jQuery('#card_installments span').text(
+                    silapayTranslations[nationality].installments
+                );
+
+                jQuery('label[for="silapay-pix"] strong').text(
+                    silapayTranslations[nationality].pix
+                );
+            }
+
+            $('#silapay_nationality').on('change', function(){
+                togglePix();
+                translateSilapay();
+            });
+
+            // executa ao carregar
+            togglePix();
+            translateSilapay();
         });
         </script>
         <?php
@@ -305,7 +454,11 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
     
     public function process_payment($order_id) {
         $order = wc_get_order($order_id);
-        
+
+        // Salva nacionalidade
+        $nationality = isset($_POST['silapay_nationality']) ? sanitize_text_field($_POST['silapay_nationality']) : 'BR';
+        $order->update_meta_data('_silapay_nationality', $nationality);
+
         // Salva método escolhido
         $method = isset($_POST['silapay_method']) ? sanitize_text_field($_POST['silapay_method']) : 'card';
         $order->update_meta_data('_silapay_method', $method);
@@ -436,6 +589,58 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
 
         return false;
     }
+
+    private function get_exchange_rate($currency) {
+
+        if ($currency === 'BRL') {
+            return 1;
+        }
+
+        for ($i = 0; $i < 5; $i++) {
+
+            $date = date('m-d-Y', strtotime("-$i days"));
+
+            $url = "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaDia(moeda=@moeda,dataCotacao=@dataCotacao)?@moeda=%27{$currency}%27&@dataCotacao=%27{$date}%27&\$format=json&\$select=cotacaoCompra,cotacaoVenda,dataHoraCotacao";
+            // echo $url."\n";
+            $response = wp_remote_get($url);
+            // echo json_encode($response)."\n\n";
+            if (is_wp_error($response)) {
+                continue;
+            }
+
+            $body = json_decode(wp_remote_retrieve_body($response), true);
+    
+            if (!empty($body['value']) && isset($body['value'][0]['cotacaoCompra'])) {
+         
+                return $body['value'][0]['cotacaoCompra'];
+            }
+    
+        }
+
+        return false;
+    }
+
+    private function convert_to_brl($amount) {
+
+        $currency = get_woocommerce_currency();
+
+        if ($currency === 'BRL') {
+            return $amount;
+        }
+
+        $rate = $this->get_exchange_rate($currency);
+      
+        if ($rate === false) {
+            wc_add_notice(
+                'Não foi possível validar as informações de câmbio monetário.',
+                'error'
+            );
+
+            return false;        
+        }
+       
+        return $amount * $rate;
+    }
     
     private function update_store_settings($settings) {
         $this->store_settings = $settings;
@@ -495,7 +700,6 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
                 'quantity' => (int) $item->get_quantity(),
             ];
         }
-  
 
     
 
@@ -511,26 +715,27 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
         
         // Monta dados para API
         $card_data = $order->get_meta('_silapay_card_data', true);
-        
-        // Adiciona taxa de 17% apenas se o site for club6.com.br
-        $site_url = preg_replace('#^https?://(www\.)?#', '', home_url());
-        if ($site_url === 'club6.com.br') {
-            $subtotal = array_sum(array_column($items, 'price'));
-            $taxa = $subtotal * 0.17;
-            $items[] = [
+
+         // Adiciona taxa de 17%
+        $subtotal = array_sum(array_column($items, 'price'));
+        $taxa = $subtotal * 0.17;
+        $items[] = [
             'id'       => 'Taxa Club6',
             'name'     => 'Taxa Club6',
             'price'    => (float) $taxa,
             'quantity' => 1,
-            ];
-        }
+        ];
+
+        $value_brl = $this->convert_to_brl($order->get_total());
+
+
         
         $data = array(
-            'value' => floatval($order->get_total()),
+            'value' => $value_brl,
             'dueDate' => date('Y-m-d', strtotime('+7 days')),
             'description' => 'Pedido #' . $order->get_id(),
             'installmentCount' => $card_data['installments'] ?? 1,
-            'totalValue' => floatval($order->get_total()),
+            'totalValue' => $value_brl,
             'installmentValue' => floatval($order->get_total()) / ($card_data['installments'] ?? 1),
             'paymentMethod' => 'creditCard',
             'postalService' => false,
@@ -566,7 +771,9 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
             'products' => $items,
         );
         
-        // Faz chamada à API
+
+        
+        // // Faz chamada à API
         $response = $this->api_request('transactions', $data);
         
         if ($response && isset($response['transaction'])) {
@@ -607,18 +814,15 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
         ];
     }
 
-    // Adiciona taxa de 17% apenas se o site for club6.com.br
-    $site_url = preg_replace('#^https?://(www\.)?#', '', home_url());
-    if ($site_url === 'club6.com.br') {
-        $subtotal = array_sum(array_column($items, 'price'));
-        $taxa = $subtotal * 0.17;
-        $items[] = [
+    // Adiciona taxa de 17%
+    $subtotal = array_sum(array_column($items, 'price'));
+    $taxa = $subtotal * 0.17;
+    $items[] = [
         'id'       => 'Taxa Club6',
         'name'     => 'Taxa Club6',
         'price'    => (float) $taxa,
         'quantity' => 1,
-        ];
-    }
+    ];
         
         $data = array(
             'woocommerceStoreName' => preg_replace('#^https?://#', '', home_url()),

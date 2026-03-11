@@ -1,3 +1,9 @@
+
+
+.payment_method_silapay_checkout img {
+    max-height: 24px !important;
+}
+
 /* Container */
 .wc_payment_method.payment_method_silapay_checkout .silapay-methods {
   background: #f9fafb !important;

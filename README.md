@@ -2,9 +2,9 @@
 
 > Gateway de pagamento para WooCommerce com suporte a **Cartão de Crédito, PIX e Boleto** via **API Sila Pay**.
 
-![Versão](https://img.shields.io/badge/vers%C3%A3o-1.0.0-blue.svg)
-![WooCommerce](https://img.shields.io/badge/WooCommerce-4.0%2B-96588A.svg)
-![WordPress](https://img.shields.io/badge/WordPress-5.0%2B-21759B.svg)
+![Versão](https://img.shields.io/badge/vers%C3%A3o-1.1.0-blue.svg)
+![WooCommerce](https://img.shields.io/badge/WooCommerce-10.0%2B-96588A.svg)
+![WordPress](https://img.shields.io/badge/WordPress-6.4.0%2B-21759B.svg)
 ![Licença](https://img.shields.io/badge/licen%C3%A7a-GPLv2-green.svg)
 
 ---

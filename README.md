@@ -47,7 +47,7 @@ O **Sila Pay Checkout** é um gateway de pagamento profissional que integra sua 
 ### Método 1 — Painel WordPress
 1. Vá em **Plugins → Adicionar Novo**
 2. Clique em **Enviar Plugin**
-3. Selecione `silapay-payment-gateway-1.0.0.zip`
+  3. Selecione `silapay-payment-gateway-1.1.0.zip`
 4. Clique em **Instalar Agora**
 5. Ative o plugin
 

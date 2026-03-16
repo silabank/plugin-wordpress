@@ -31,6 +31,9 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
         // Carrega configurações
         $this->init_form_fields();
         $this->init_settings();
+
+        $this->allow_installments = $this->get_option('allow_installments');
+        $this->max_installments = $this->get_option('max_installments');
         
         // Define variáveis
         $this->title        = $this->get_option('title');
@@ -115,6 +118,42 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
                 'default'     => 'Pague com cartão, PIX ou boleto bancário.',
                 'desc_tip'    => true,
             ),
+            'allow_installments' => array(
+                'title'   => 'Permitir Parcelamento',
+                'type'    => 'checkbox',
+                'label'   => 'Permitir pagamento parcelado',
+                'default' => 'yes'
+            ),
+
+            'max_installments' => array(
+                'title'       => 'Máximo de Parcelas',
+                'type'        => 'select',
+                'description' => 'Quantidade máxima de parcelas permitidas',
+                'default'     => '12',
+                'options'     => array(
+                    '1' => '1x',
+                    '2' => '2x',
+                    '3' => '3x',
+                    '4' => '4x',
+                    '5' => '5x',
+                    '6' => '6x',
+                    '7' => '7x',
+                    '8' => '8x',
+                    '9' => '9x',
+                    '10' => '10x',
+                    '11' => '11x',
+                    '12' => '12x',
+                    '13' => '13x',
+                    '14' => '14x',
+                    '15' => '15x',
+                    '16' => '16x',
+                    '17' => '17x',
+                    '18' => '18x',
+                    '19' => '19x',
+                    '20' => '20x',
+                    '21' => '21x'
+                )
+            ),
             'access_token' => array(
                 'title'       => 'Access Token',
                 'type'        => 'text',
@@ -193,22 +232,28 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
                     <input type="text" name="card_holder" placeholder="João da Silva" style="width: 100%; padding: 8px;">
                     </label>
                 </p>
-                
-                <p id="document_owner">
-                    <label>CPF do titular * (sem pontos e traços)<br>
-                    <input  type="text" name="card_cpf" placeholder="Ex: 123.456.789-00" maxlength="11" style="width: 100%; padding: 8px;">
-                    </label>
-                </p>
-                
+
                 <p>
                     <label id="card_installments"><span>Parcelas</span><br>
                     <select name="installments" style="padding: 8px;">
-                        <?php for ($i = 1; $i <= 12; $i++): ?>
+                        <?php
+                        $max = $this->allow_installments === 'yes' ? intval($this->max_installments) : 1;
+
+                        for ($i = 1; $i <= $max; $i++):
+                        ?>
                         <option value="<?php echo $i; ?>"><?php echo $i; ?>x</option>
                         <?php endfor; ?>
                     </select>
                     </label>
                 </p>
+                
+                <p id="document_owner" <?php echo get_woocommerce_currency() !== 'BRL' ? 'style="display: none;"' : ''; ?>>
+                    <label>CPF do titular * (sem pontos e traços)<br>
+                    <input     type="text" name="card_cpf" placeholder="Ex: 123.456.789-00" maxlength="11" style="width: 100%; padding: 8px;">
+                    </label>
+                </p>
+                
+                
             </div>
             <?php endif ;?>
 
@@ -322,23 +367,41 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
         });
 
         jQuery(document).ready(function($){
-
+           
             function togglePix() {
                 var nationality = $('#silapay_nationality').val();
+                var silapayCurrency = "<?php echo get_woocommerce_currency(); ?>";
 
-                if(nationality !== 'BR'){
-                    $('#silapay-pix-option').hide();
+                var isBRL = silapayCurrency === 'BRL';
+                var isBrazilian = nationality === 'BR';
+
+                // CPF só aparece se moeda for BRL
+                if(isBRL){
+                    $('#document_owner').show();
+                } else {
                     $('#document_owner').hide();
-                    
+                }
+
+                // PIX só aparece se nacionalidade for BR
+                if(!isBrazilian){
+                    $('#silapay-pix-option').hide();
+
                     // se PIX estiver selecionado muda para cartão
                     if($('#silapay-pix').is(':checked')){
                         $('#silapay-card').prop('checked', true).trigger('change');
                     }
 
                 } else {
-                    $('#silapay-pix-option').show();
+                    if(isBRL){
+                        $('#silapay-pix-option').show();
+                    }
                 }
+
             }
+
+             jQuery(document.body).on('updated_checkout', function () {
+                togglePix();
+            });
 
             function translateSilapay() {
                 var nationality = jQuery('#silapay_nationality').val();

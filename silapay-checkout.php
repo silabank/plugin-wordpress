@@ -3,11 +3,11 @@
  * Plugin Name: Sila Pay Checkout
  * Plugin URI: https://silapay.pro/
  * Description: Gateway simples para Sila Pay com Cartão, PIX e Boleto
- * Version: 1.1.0
+ * Version: 1.1.2
  * Author: Sila Pay
  * License: GPL v2 or later
  * Text Domain: silapay-checkout
- * WC requires at least: 4.0
+ * WC requires at least: 7.0
  */
 
 defined('ABSPATH') || exit;

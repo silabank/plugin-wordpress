@@ -177,7 +177,7 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
     public function payment_fields() {
 
     ?>
-        
+    <strong>Esta transação será cobrada em <?php echo get_woocommerce_currency();?></strong>
     <?php
         if ($this->description) {
             echo wpautop(wp_kses_post($this->description));
@@ -498,7 +498,7 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
                 return false;
             }
             
-            if (empty($card_cpf)) {
+            if (empty($card_cpf) && get_woocommerce_currency() === "BRL") {
                 wc_add_notice('CPF do titular é obrigatório.', 'error');
                 return false;
             }
@@ -562,7 +562,7 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
         $method = $order->get_meta('_silapay_method', true);
         
         echo '<div class="silapay-processing">';
-        echo '<h3>Processando pagamento...</h3>';
+        echo '<h3>Aguarde...</h3>';
         
         // Processa pagamento baseado no método
         switch ($method) {
@@ -846,7 +846,7 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
                 echo '<p class="error">Erro ao processar cartão: ' . ($response['message'] ?? 'Erro desconhecido') . '</p>';
             }
         } else {
-            echo '<p class="error">Falha na comunicação com a Silapay. Erro: '.$response["message"].'</p>';
+            echo '<p class="error">Erro: '.$response["message"].'</p>';
         }
     }
     

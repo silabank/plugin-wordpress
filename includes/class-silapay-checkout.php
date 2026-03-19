@@ -65,7 +65,7 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
 
   public function silapay_nationality_dropdown() {
     ?>
-    <div class="silapay-nationality" style="margin-bottom:15px;">
+        <div class="silapay-nationality" style="margin-bottom:15px; visibility:hidden;">
         <label for="silapay_nationality"><strong>Nacionalidade</strong></label>
 
         <select name="silapay_nationality" id="silapay_nationality" style="width:100%;padding:8px;">
@@ -108,14 +108,14 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
                 'title'       => 'Título',
                 'type'        => 'text',
                 'description' => 'Título que o cliente vê durante o checkout.',
-                'default'     => 'Silapay (Cartão, PIX, Boleto)',
+                'default'     => 'Sila Pay (Cartão e Pix)',
                 'desc_tip'    => true,
             ),
             'description' => array(
                 'title'       => 'Descrição',
                 'type'        => 'textarea',
                 'description' => 'Descrição que o cliente vê durante o checkout.',
-                'default'     => 'Pague com cartão, PIX ou boleto bancário.',
+                'default'     => 'Pague com cartão ou PIX.',
                 'desc_tip'    => true,
             ),
             'allow_installments' => array(
@@ -175,9 +175,16 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
     }
     
     public function payment_fields() {
-
+    $methods = $this->payment_methods;
+    if (get_woocommerce_currency() === "BRL" && in_array("pix", $methods)) {
+        $selectedMethod = "pix";
+    } elseif (in_array("creditCard", $methods)) {
+        $selectedMethod = "creditCard";
+    } else {
+        $selectedMethod = null; // ou fallback
+    }
     ?>
-    <strong>Esta transação será cobrada em <?php echo get_woocommerce_currency();?></strong>
+
     <?php
         if ($this->description) {
             echo wpautop(wp_kses_post($this->description));
@@ -192,10 +199,12 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
             <?php if(empty($this->payment_methods)): ?>
                 <p style="color:red;">Nenhum método de pagamento foi escolhido para esta loja.</p>
             <?php endif; ?>
+
+            <p><strong id="transaction_warning"></strong></p>
                 
             <?php if(in_array("creditCard", $this->payment_methods)): ?>
             <p>
-                <input type="radio" name="silapay_method" value="card" id="silapay-card">
+                <input type="radio" name="silapay_method" value="card" id="silapay-card" <?php echo  ($selectedMethod === 'creditCard' && get_woocommerce_currency() !== 'BRL' && count($this->payment_methods) === 1 ? 'style="opacity:0;"' : ''); echo($selectedMethod === 'creditCard' ? 'checked' : '');?>>
                 <label for="silapay-card"><strong>💳 Cartão de Crédito</strong></label>
             </p>
             
@@ -257,9 +266,9 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
             </div>
             <?php endif ;?>
 
-            <?php  if(in_array("pix", $this->payment_methods)): ?>
+            <?php  if(in_array("pix", $this->payment_methods) && $selectedMethod === "BRL"): ?>
             <p id="silapay-pix-option">
-                <input type="radio" name="silapay_method" value="pix" id="silapay-pix" checked>
+                    <input type="radio" name="silapay_method" value="pix" id="silapay-pix"  <?php echo  ($selectedMethod === 'pix' && get_woocommerce_currency() === 'BRL' && count($this->payment_methods) === 1 ? 'style="opacity:0;"' : ''); echo($selectedMethod === 'pix' ? 'checked' : '');?>>
                 <label for="silapay-pix"><strong>📱 PIX</strong></label>
             </p>
             
@@ -287,8 +296,9 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
         </div>
         
         <script>
-            const silapayTranslations = {
-                BR: {
+            if(!window.silapayTranslations){
+                 window.silapayTranslations = {
+                PT: {
                     card_title: "💳 Cartão de Crédito",
                     card_number: "Número do cartão *",
                     card_placeholder: "4444 4444 4444 4444",
@@ -307,10 +317,11 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
 
                     installments: "Parcelas",
 
-                    pix_title: "📱 PIX"
+                    pix_title: "📱 PIX",
+                    transaction_warning: `Esta transação será cobrada em <?php echo get_woocommerce_currency(); ?>. Pague com cartão de crédito.`,
                 },
 
-                US: {
+                EN: {
                     card_title: "💳 Credit Card",
                     card_number: "Card Number *",
                     card_placeholder: "4444 4444 4444 4444",
@@ -326,10 +337,9 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
 
                     holder: "Cardholder Name *",
                     holder_placeholder: "John Smith",
-
                     installments: "Installments",
-
-                    pix_title: "📱 PIX"
+                    pix_title: "📱 PIX",
+                    transaction_warning: `This transaction will be charged in <?php echo get_woocommerce_currency(); ?>. Pay with Credit card.`,
                 },
 
                 ES: {
@@ -351,10 +361,13 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
 
                     installments: "Cuotas",
 
-                    pix_title: "📱 PIX"
+                    pix_title: "📱 PIX",
+                    transaction_warning: `Esta transacción será cobrada en <?php echo get_woocommerce_currency(); ?>. Pague con tarjeta de crédito.`,
                 }
 
             };
+            }
+           
 
             
 
@@ -404,13 +417,12 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
             });
 
             function translateSilapay() {
-                var nationality = jQuery('#silapay_nationality').val();
+                var nationality = "<?php echo strtoupper(substr(get_locale(), 0, 2));?>";
 
                 if(!silapayTranslations[nationality]){
-                    nationality = "BR";
+                    nationality = "PT";
                 }
 
-                console.log("NACIONALIDADE",  silapayTranslations[nationality]);
 
 
                 jQuery('label[for="silapay-card"] strong').text(
@@ -440,12 +452,11 @@ class WC_Silapay_Checkout extends WC_Payment_Gateway {
                 jQuery('label[for="silapay-pix"] strong').text(
                     silapayTranslations[nationality].pix
                 );
-            }
 
-            $('#silapay_nationality').on('change', function(){
-                togglePix();
-                translateSilapay();
-            });
+                jQuery('#transaction_warning').text(
+                    silapayTranslations[nationality].transaction_warning
+                );
+            }
 
             // executa ao carregar
             togglePix();

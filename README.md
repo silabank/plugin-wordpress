@@ -1,8 +1,8 @@
 # 📦 Sila Pay Checkout — WooCommerce Payment Gateway
 
-> Gateway de pagamento para WooCommerce com suporte a **Cartão de Crédito, PIX e Boleto** via **API Sila Pay**.
+> Gateway de pagamento para WooCommerce com suporte a **Cartão de Crédito e PIX** via **API Sila Pay**.
 
-![Versão](https://img.shields.io/badge/vers%C3%A3o-1.1.3-blue.svg)
+![Versão](https://img.shields.io/badge/vers%C3%A3o-1.1.4-blue.svg)
 ![WooCommerce](https://img.shields.io/badge/WooCommerce-10.0%2B-96588A.svg)
 ![WordPress](https://img.shields.io/badge/WordPress-7.0.0%2B-21759B.svg)
 ![Licença](https://img.shields.io/badge/licen%C3%A7a-GPLv2-green.svg)
@@ -47,7 +47,7 @@ O **Sila Pay Checkout** é um gateway de pagamento profissional que integra sua 
 ### Método 1 — Painel WordPress
 1. Vá em **Plugins → Adicionar Novo**
 2. Clique em **Enviar Plugin**
-  3. Selecione `silapay-payment-gateway-1.1.3.zip`
+  3. Selecione `silapay-payment-gateway-1.1.4.zip`
 4. Clique em **Instalar Agora**
 5. Ative o plugin
 
